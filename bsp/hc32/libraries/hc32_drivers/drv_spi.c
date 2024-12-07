@@ -8,6 +8,7 @@
  * 2022-04-28     CDT          first version
  * 2023-09-30     CDT          Delete dma transmit interrupt
  * 2024-02-20     CDT          support HC32F448
+ * 2024-04-16     CDT          support HC32F472
  */
 
 /*******************************************************************************
@@ -293,7 +294,7 @@ static rt_err_t hc32_spi_init(struct hc32_spi *spi_drv, struct rt_spi_configurat
 #endif
 
     /* Enable error interrupt */
-#if defined (HC32F448)
+#if defined (HC32F448) || defined (HC32F472)
     INTC_IntSrcCmd(spi_drv->config->err_irq.irq_config.int_src, ENABLE);
 #endif
     NVIC_EnableIRQ(spi_drv->config->err_irq.irq_config.irq_num);
@@ -311,7 +312,7 @@ static void hc32_spi_enable(CM_SPI_TypeDef *SPIx)
     {
         SPI_Cmd(SPIx, ENABLE);
     }
-#elif defined (HC32F448)
+#elif defined (HC32F448) || defined (HC32F472)
     if ((SPIx->CR & SPI_CR_SPE) != SPI_CR_SPE)
     {
         SPI_Cmd(SPIx, ENABLE);
@@ -332,7 +333,7 @@ static void hc32_spi_set_trans_mode(CM_SPI_TypeDef *SPIx, uint32_t u32Mode)
     {
         CLR_REG32_BIT(SPIx->CR1, SPI_CR1_TXMDS);
     }
-#elif defined (HC32F448)
+#elif defined (HC32F448) || defined (HC32F472)
     if (SPI_SEND_ONLY == u32Mode)
     {
         SET_REG32_BIT(SPIx->CR, SPI_CR_TXMDS);
@@ -351,7 +352,7 @@ static uint32_t hc32_spi_get_trans_mode(CM_SPI_TypeDef *SPIx)
 {
 #if defined (HC32F460) || defined (HC32F4A0)
     return READ_REG32_BIT(SPIx->CR1, SPI_CR1_TXMDS);
-#elif defined (HC32F448)
+#elif defined (HC32F448) || defined (HC32F472)
     return READ_REG32_BIT(SPIx->CR, SPI_CR_TXMDS);
 #else
 #error "Please select first the target HC32xxxx device used in your application."
@@ -495,24 +496,20 @@ static rt_ssize_t hc32_spi_xfer(struct rt_spi_device *device, struct rt_spi_mess
 
     RT_ASSERT(device != RT_NULL);
     RT_ASSERT(device->bus != RT_NULL);
-    RT_ASSERT(device->bus->parent.user_data != RT_NULL);
     RT_ASSERT(message != RT_NULL);
 
     struct hc32_spi *spi_drv =  rt_container_of(device->bus, struct hc32_spi, spi_bus);
     CM_SPI_TypeDef *spi_instance = spi_drv->config->Instance;
-    struct hc32_hw_spi_cs *cs = device->parent.user_data;
 
-    if (message->cs_take && !(device->config.mode & RT_SPI_NO_CS))
+    if (message->cs_take && !(device->config.mode & RT_SPI_NO_CS) && (device->cs_pin != PIN_NONE))
     {
         if (device->config.mode & RT_SPI_CS_HIGH)
-        {
-            GPIO_SetPins(cs->port, cs->pin);
-        }
+            rt_pin_write(device->cs_pin, PIN_HIGH);
         else
-        {
-            GPIO_ResetPins(cs->port, cs->pin);
-        }
+            rt_pin_write(device->cs_pin, PIN_LOW);
     }
+
+    LOG_D("%s transfer prepare and start", spi_drv->config->bus_name);
     LOG_D("%s sendbuf: %X, recvbuf: %X, length: %d", spi_drv->config->bus_name,
           (uint32_t)message->send_buf, (uint32_t)message->recv_buf, message->length);
 
@@ -620,16 +617,12 @@ static rt_ssize_t hc32_spi_xfer(struct rt_spi_device *device, struct rt_spi_mess
     /* clear error flag */
     SPI_ClearStatus(spi_instance, SPI_FLAG_CLR_ALL);
 
-    if (message->cs_release && !(device->config.mode & RT_SPI_NO_CS))
+    if (message->cs_release && !(device->config.mode & RT_SPI_NO_CS) && (device->cs_pin != PIN_NONE))
     {
         if (device->config.mode & RT_SPI_CS_HIGH)
-        {
-            GPIO_ResetPins(cs->port, cs->pin);
-        }
+            rt_pin_write(device->cs_pin, PIN_LOW);
         else
-        {
-            GPIO_SetPins(cs->port, cs->pin);
-        }
+            rt_pin_write(device->cs_pin, PIN_HIGH);
     }
 
     return message->length;
@@ -644,30 +637,19 @@ static const struct rt_spi_ops hc32_spi_ops =
 /**
   * Attach the spi device to SPI bus, this function must be used after initialization.
   */
-rt_err_t rt_hw_spi_device_attach(const char *bus_name, const char *device_name, uint8_t cs_gpio_port, uint16_t cs_gpio_pin)
+rt_err_t rt_hw_spi_device_attach(const char *bus_name, const char *device_name, rt_base_t cs_pin)
 {
     RT_ASSERT(bus_name != RT_NULL);
     RT_ASSERT(device_name != RT_NULL);
 
     rt_err_t result;
     struct rt_spi_device *spi_device;
-    struct hc32_hw_spi_cs *cs_pin;
-    stc_gpio_init_t stcGpioInit;
-
-    GPIO_StructInit(&stcGpioInit);
-    stcGpioInit.u16PinState = PIN_STAT_SET;
-    stcGpioInit.u16PinDir   = PIN_DIR_OUT;
-    stcGpioInit.u16PullUp   = PIN_PU_ON;
-    GPIO_Init(cs_gpio_port, cs_gpio_pin, &stcGpioInit);
 
     /* attach the device to spi bus*/
     spi_device = (struct rt_spi_device *)rt_malloc(sizeof(struct rt_spi_device));
     RT_ASSERT(spi_device != RT_NULL);
-    cs_pin = (struct hc32_hw_spi_cs *)rt_malloc(sizeof(struct hc32_hw_spi_cs));
-    RT_ASSERT(cs_pin != RT_NULL);
-    cs_pin->port = cs_gpio_port;
-    cs_pin->pin  = cs_gpio_pin;
-    result = rt_spi_bus_attach_device(spi_device, device_name, bus_name, (void *)cs_pin);
+
+    result = rt_spi_bus_attach_device_cspin(spi_device, device_name, bus_name, cs_pin, RT_NULL);
 
     if (result != RT_EOK)
     {
@@ -679,7 +661,7 @@ rt_err_t rt_hw_spi_device_attach(const char *bus_name, const char *device_name, 
 
 static void hc32_spi_err_irq_handle(struct hc32_spi *spi)
 {
-#if defined (HC32F448)
+#if defined (HC32F448) ||defined (HC32F472)
 #define SPI_FLAG_OVERLOAD       SPI_FLAG_OVERRUN
 #define SPI_FLAG_UNDERLOAD      SPI_FLAG_UNDERRUN
 #endif
@@ -715,12 +697,12 @@ static void hc32_spi1_err_irq_handler(void)
     rt_interrupt_leave();
 }
 
-#if defined (HC32F448)
+#if defined (HC32F448) ||defined (HC32F472)
 void SPI1_Handler(void)
 {
     hc32_spi1_err_irq_handler();
 }
-#endif /* HC32F448 */
+#endif /* HC32F448, HC32F472 */
 
 #endif /* BSP_USING_SPI1 */
 
@@ -733,12 +715,12 @@ static void hc32_spi2_err_irq_handler(void)
     /* leave interrupt */
     rt_interrupt_leave();
 }
-#if defined (HC32F448)
+#if defined (HC32F448) ||defined (HC32F472)
 void SPI2_Handler(void)
 {
     hc32_spi2_err_irq_handler();
 }
-#endif /* HC32F448 */
+#endif /* HC32F448, HC32F472 */
 
 #endif /* BSP_USING_SPI2 */
 
@@ -751,12 +733,12 @@ static void hc32_spi3_err_irq_handler(void)
     /* leave interrupt */
     rt_interrupt_leave();
 }
-#if defined (HC32F448)
+#if defined (HC32F448) ||defined (HC32F472)
 void SPI3_Handler(void)
 {
     hc32_spi3_err_irq_handler();
 }
-#endif /* HC32F448 */
+#endif /* HC32F448, HC32F472 */
 
 #endif /* BSP_USING_SPI3 */
 

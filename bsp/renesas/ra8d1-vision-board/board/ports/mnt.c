@@ -137,12 +137,12 @@ static void sd_mount(void)
 }
 
 #else
-#include <spi_msd.h>
-#include "drv_sci_spi.h"
+#include <dev_spi_msd.h>
+#include "drv_sci.h"
 int sd_mount(void)
 {
     uint32_t cs_pin = BSP_IO_PORT_10_PIN_05;
-    rt_hw_sci_spi_device_attach("scpi2", "scpi20", cs_pin);
+    rt_hw_sci_spi_device_attach("sci2s", "scpi20", cs_pin);
     msd_init("sd0", "scpi20");
     if (dfs_mount("sd0", "/", "elm", 0, 0) == 0)
     {

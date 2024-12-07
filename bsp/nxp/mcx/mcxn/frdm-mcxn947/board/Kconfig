@@ -27,7 +27,7 @@ menu "On-chip Peripheral Drivers"
             config BSP_USING_UART4
                 bool "Enable UART4"
                 default y
-  
+
             config BSP_USING_UART5
                 bool "Enable UART5"
                 default n
@@ -57,6 +57,7 @@ menu "On-chip Peripheral Drivers"
         config BSP_USING_SPI
             bool "Enable SPI"
             select RT_USING_SPI
+            select BSP_USING_PIN
             default y
 
             if BSP_USING_SPI
@@ -80,10 +81,6 @@ menu "On-chip Peripheral Drivers"
                 config BSP_USING_SPI7
                     bool "Enable Flexcomm7 as SPI"
                     default n
-
-                config BSP_USING_SPI8
-                    bool "Enable Flexcomm8 as High Speed SPI"
-                    default y
             endif
 
     menuconfig BSP_USING_ADC
@@ -158,7 +155,7 @@ menu "On-chip Peripheral Drivers"
         select RT_USING_LWIP
         select RT_USING_NETDEV
         select RT_USING_SAL
-        
+
     config BSP_USING_RTC
         bool "Enable RTC"
         select RT_USING_RTC
@@ -187,6 +184,32 @@ menu "On-chip Peripheral Drivers"
                     default y
             endif
 
+    menuconfig BSP_USING_USB
+       bool "Enable USB"
+       default n
+       if BSP_USING_USB
+            config BSP_USING_USB_DEVICE
+                bool "Enable USB Device, default is msc ramdisk"
+                default n
+                select RT_USING_CHERRYUSB
+                select RT_CHERRYUSB_DEVICE
+                select RT_CHERRYUSB_DEVICE_SPEED_HS
+                select RT_CHERRYUSB_DEVICE_CHIPIDEA_MCX
+                select RT_CHERRYUSB_DEVICE_MSC
+                select RT_CHERRYUSB_DEVICE_TEMPLATE_MSC
+            config BSP_USING_USB_HOST
+                bool "Enable USB Host"
+                default n
+                select RT_USING_CHERRYUSB
+                select RT_CHERRYUSB_HOST
+                select RT_CHERRYUSB_HOST_EHCI_MCX
+                select RT_CHERRYUSB_HOST_CDC_ACM
+                select RT_CHERRYUSB_HOST_HID
+                select RT_CHERRYUSB_HOST_MSC
+                select RT_CHERRYUSB_HOST_CDC_RNDIS
+       endif
+
+
 endmenu
 
 
@@ -194,6 +217,7 @@ menu "Board extended module Drivers"
     menuconfig BSP_USING_RW007
         bool "Enable RW007"
         default n
+        select BSP_USING_SPI
         select BSP_USING_SPI1
         select PKG_USING_RW007
         select RT_USING_MEMPOOL

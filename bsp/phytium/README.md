@@ -26,7 +26,7 @@
 | **片上外设**      | **支持情况** | **备注**                              |
 | :-----------------| :----------: | :------------------------------------- |
 | UART              |     支持     | UART1 打印输出 |
-| GPIO              |     支持     | GPIO 引脚电平输入输出，中断 |
+| [GPIO](./doc/drivers/gpio.md)              |     支持     | GPIO 引脚电平输入输出，中断 |
 | XMAC              |     支持     | XMAC 网卡初始化和运行 |
 | SDMMC             |     支持     | SD0/SD1 读写 SD 卡或 eMMC 颗粒 |
 | PWM               |     支持     | PWM 脉宽调制电压输出        |
@@ -58,6 +58,7 @@
 2. 启动 RT-Thread env 应用程序，在交互界面可以使用`cd`指令进入`aarch32`或`aarch64`目录
 3. 按照指导安装 [aarch32](./aarch32/README.md)或[aarch64](./aarch64/README.md)编译链，并进行相关配置
 4. 按照指导[启动镜像程序](./doc/how_to_flashed_binary.md)
+5. 参考[使用文件系统](./doc/how_to_use_file_system.md)制作和使用文件系统
 
 ### RT-Thread Studio 环境
 
@@ -76,6 +77,8 @@
 - [基于飞腾BSP开发lvgl应用程序](./doc/use_phytium_dc_with_lvgl.md)
 
 - [Phytium_PI上开发和固化RT-Thread程序](./doc/use_phytium_pi_sd_image.md)，解决Phytium PI上使用RT-Thread读写操作影响 SD 卡的固件问题
+
+- [C++支持](./doc/cpp_support.md)
 
 ## 6. 维护人信息
 
